@@ -113,28 +113,43 @@ function getSessionPlayers(sessionId) {
   }));
 }
 
-function getAnswerCount(sessionId, questionId) {
+function getAnsweredPlayerIds(sessionId, questionId) {
   if (!questionId) {
-    return 0;
+    return new Set();
   }
 
-  return db.prepare(`
-    SELECT COUNT(*) AS count
+  return new Set(db.prepare(`
+    SELECT player_id AS playerId
     FROM answers
     WHERE session_id = ? AND question_id = ?
-  `).get(sessionId, questionId).count;
+  `).all(sessionId, questionId).map((answer) => answer.playerId));
 }
 
-function getVoteCount(sessionId, questionId) {
+function getVoterPlayerIds(sessionId, questionId) {
   if (!questionId) {
-    return 0;
+    return new Set();
   }
 
-  return db.prepare(`
-    SELECT COUNT(*) AS count
+  return new Set(db.prepare(`
+    SELECT voter_player_id AS playerId
     FROM votes
     WHERE session_id = ? AND question_id = ?
-  `).get(sessionId, questionId).count;
+  `).all(sessionId, questionId).map((vote) => vote.playerId));
+}
+
+function haveAllActivePlayersAnswered(session, questionId) {
+  if (!session || session.status !== 'answering' || !questionId) {
+    return false;
+  }
+
+  const activePlayers = getSessionPlayers(session.id).filter((player) => player.connected);
+
+  if (activePlayers.length === 0) {
+    return false;
+  }
+
+  const answeredPlayerIds = getAnsweredPlayerIds(session.id, questionId);
+  return activePlayers.every((player) => answeredPlayerIds.has(player.id));
 }
 
 function getVotingAnswers(sessionId, questionId) {
@@ -215,15 +230,19 @@ function buildBaseState(session) {
 function buildAdminState(session) {
   const base = buildBaseState(session);
   const players = getSessionPlayers(session.id);
+  const activePlayers = players.filter((player) => player.connected);
   const questionId = base.question?.id;
+  const answeredPlayerIds = getAnsweredPlayerIds(session.id, questionId);
+  const voterPlayerIds = getVoterPlayerIds(session.id, questionId);
   const state = {
     ...base,
     players,
     progress: {
-      playersTotal: players.length,
-      playersConnected: players.filter((player) => player.connected).length,
-      answersSubmitted: getAnswerCount(session.id, questionId),
-      votesSubmitted: getVoteCount(session.id, questionId),
+      playersTotal: activePlayers.length,
+      playersRegistered: players.length,
+      playersConnected: activePlayers.length,
+      answersSubmitted: activePlayers.filter((player) => answeredPlayerIds.has(player.id)).length,
+      votesSubmitted: activePlayers.filter((player) => voterPlayerIds.has(player.id)).length,
     },
   };
 
@@ -632,7 +651,11 @@ io.on('connection', (socket) => {
       session: { code: session.code, status: session.status },
     });
 
-    if (!ensureAnswerTimer(session)) {
+    const currentQuestion = getCurrentQuestion(session);
+
+    if (haveAllActivePlayersAnswered(session, currentQuestion?.id)) {
+      transitionToVoting(session.code);
+    } else if (!ensureAnswerTimer(session)) {
       emitAdminState(session.code);
       emitPlayerState(session.code, player.id);
     }
@@ -687,8 +710,13 @@ io.on('connection', (socket) => {
     }
 
     reply({ ok: true });
-    emitAdminState(session.code);
-    emitPlayerState(session.code, player.id);
+
+    if (haveAllActivePlayersAnswered(session, question.id)) {
+      transitionToVoting(session.code);
+    } else {
+      emitAdminState(session.code);
+      emitPlayerState(session.code, player.id);
+    }
   });
 
   registerSocketHandler(socket, 'vote:submit', (payload, reply) => {
@@ -816,7 +844,14 @@ io.on('connection', (socket) => {
     }
 
     if (playerCode) {
-      emitAdminState(playerCode);
+      const session = getSession(playerCode);
+      const question = getCurrentQuestion(session);
+
+      if (haveAllActivePlayersAnswered(session, question?.id)) {
+        transitionToVoting(session.code);
+      } else {
+        emitAdminState(playerCode);
+      }
     }
   });
 });

@@ -193,7 +193,7 @@ function submitVote(answerId, button, isOwn) {
   elements.playerMessage.textContent = '';
 
   if (isOwn) {
-    elements.playerMessage.textContent = 'Nu poți vota propriul răspuns. Frumos ai încercat.';
+    elements.playerMessage.textContent = 'Nu poți vota propriul răspuns. Măcar ai încercat.';
     return;
   }
 
