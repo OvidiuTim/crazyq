@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#6c45e2" />
+    <title>CrazyQ · Host</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body class="admin-page">
+    <header class="site-header">
+      <a class="brand" href="/admin" aria-label="CrazyQ Admin">
+        <span class="brand-mark" aria-hidden="true">?</span>
+        <span>CrazyQ</span>
+      </a>
+      <span class="role-badge">Panou host</span>
+    </header>
+
+    <main class="admin-shell">
+      <section class="hero-panel" id="createPanel">
+        <div>
+          <p class="eyebrow">Tu conduci nebunia</p>
+          <h1>Pregătește camera de joc.</h1>
+          <p class="lead">Creează o sesiune, distribuie codul și urmărește cum se adună gașca.</p>
+        </div>
+        <button class="button button-primary button-large" id="createSessionButton" type="button">
+          Creează sesiune nouă
+        </button>
+        <p class="message" id="createMessage" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="lobby" id="lobbyPanel" hidden>
+        <div class="session-column">
+          <div class="panel session-card">
+            <p class="eyebrow">Codul sesiunii</p>
+            <strong class="session-code" id="sessionCode">—</strong>
+            <p class="muted">Participanții îl introduc pe telefon.</p>
+          </div>
+
+          <div class="panel link-card">
+            <div>
+              <p class="eyebrow">Link pentru jucători</p>
+              <a id="playerLink" href="/play">/play</a>
+            </div>
+            <button class="button button-secondary" id="copyLinkButton" type="button">Copiază linkul</button>
+            <p class="message compact" id="copyMessage" role="status" aria-live="polite"></p>
+          </div>
+
+          <button class="button button-primary button-start" id="startGameButton" type="button">
+            Începe jocul
+          </button>
+          <p class="message centered" id="startMessage" role="status" aria-live="polite"></p>
+        </div>
+
+        <div class="panel players-panel">
+          <div class="players-heading">
+            <div>
+              <p class="eyebrow">Lobby live</p>
+              <h2>Participanți</h2>
+            </div>
+            <span class="player-count" id="playerCount" aria-label="Număr participanți">0</span>
+          </div>
+
+          <div class="empty-state" id="emptyPlayers">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            <p>Așteptăm primii curajoși…</p>
+          </div>
+          <ul class="player-list" id="playerList" aria-live="polite"></ul>
+        </div>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/admin.js"></script>
+  </body>
+</html>

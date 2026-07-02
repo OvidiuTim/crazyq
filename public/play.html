@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#6c45e2" />
+    <title>CrazyQ · Joacă</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body class="play-page">
+    <main class="play-shell">
+      <a class="brand play-brand" href="/play" aria-label="CrazyQ">
+        <span class="brand-mark" aria-hidden="true">?</span>
+        <span>CrazyQ</span>
+      </a>
+
+      <section class="join-card" id="joinCard">
+        <div class="join-intro">
+          <p class="eyebrow">Intră în joc</p>
+          <h1>E gașca pregătită?</h1>
+          <p class="lead">Ai nevoie doar de cod și de un nume memorabil.</p>
+        </div>
+
+        <form id="joinForm" novalidate>
+          <label for="sessionInput">Cod sesiune</label>
+          <input
+            class="code-input"
+            id="sessionInput"
+            name="session"
+            type="text"
+            inputmode="text"
+            maxlength="4"
+            autocomplete="off"
+            autocapitalize="characters"
+            placeholder="ABCD"
+            required
+          />
+
+          <label for="nameInput">Numele tău</label>
+          <input
+            id="nameInput"
+            name="name"
+            type="text"
+            maxlength="30"
+            autocomplete="name"
+            placeholder="Ex: Mara"
+            required
+          />
+
+          <button class="button button-primary button-large button-full" id="joinButton" type="submit">
+            Join
+          </button>
+          <p class="message error-message" id="joinMessage" role="alert" aria-live="assertive"></p>
+        </form>
+      </section>
+
+      <section class="joined-card" id="joinedCard" hidden>
+        <div class="success-icon" aria-hidden="true">✓</div>
+        <p class="eyebrow">Ești înăuntru</p>
+        <h1>Ai intrat în sesiune</h1>
+        <p class="lead"><strong id="joinedName"></strong>, acum uită-te la ecranul hostului.</p>
+        <div class="joined-code">
+          Sesiunea <strong id="joinedCode"></strong>
+        </div>
+        <p class="message error-message" id="sessionMessage" role="alert" aria-live="assertive"></p>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/play.js"></script>
+  </body>
+</html>
