@@ -3,70 +3,125 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#6c45e2" />
+    <meta name="theme-color" content="#6d47e5" />
     <title>CrazyQ · Host</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body class="admin-page">
-    <header class="site-header">
+    <header class="site-header admin-header">
       <a class="brand" href="/admin" aria-label="CrazyQ Admin">
         <span class="brand-mark" aria-hidden="true">?</span>
         <span>CrazyQ</span>
       </a>
-      <span class="role-badge">Panou host</span>
+      <div class="header-actions">
+        <span class="status-badge" id="headerStatus" hidden>Lobby</span>
+        <button class="button button-ghost button-small" id="newSessionButton" type="button" hidden>
+          Sesiune nouă
+        </button>
+      </div>
     </header>
 
+    <div class="connection-toast" id="connectionMessage" role="status" aria-live="polite" hidden></div>
+
     <main class="admin-shell">
-      <section class="hero-panel" id="createPanel">
+      <section class="hero-panel" id="createView">
         <div>
           <p class="eyebrow">Tu conduci nebunia</p>
-          <h1>Pregătește camera de joc.</h1>
-          <p class="lead">Creează o sesiune, distribuie codul și urmărește cum se adună gașca.</p>
+          <h1>Pornește un joc memorabil.</h1>
+          <p class="lead">Zece întrebări. Răspunsuri fără filtru. Un singur câștigător.</p>
         </div>
         <button class="button button-primary button-large" id="createSessionButton" type="button">
           Creează sesiune nouă
         </button>
-        <p class="message" id="createMessage" role="status" aria-live="polite"></p>
+        <p class="message error-message" id="createMessage" role="alert" aria-live="assertive"></p>
       </section>
 
-      <section class="lobby" id="lobbyPanel" hidden>
-        <div class="session-column">
-          <div class="panel session-card">
-            <p class="eyebrow">Codul sesiunii</p>
-            <strong class="session-code" id="sessionCode">—</strong>
-            <p class="muted">Participanții îl introduc pe telefon.</p>
+      <section id="sessionView" hidden>
+        <div class="session-strip">
+          <div>
+            <span class="strip-label">Cod sesiune</span>
+            <strong class="strip-code" id="sessionCode">—</strong>
           </div>
+          <div class="strip-question" id="questionCounter">Lobby</div>
+          <div class="strip-players">
+            <span class="online-dot" aria-hidden="true"></span>
+            <strong id="onlineCount">0</strong>
+            <span>online</span>
+          </div>
+        </div>
 
-          <div class="panel link-card">
-            <div>
-              <p class="eyebrow">Link pentru jucători</p>
+        <section class="lobby-layout" id="lobbyStage">
+          <div class="invite-panel panel-dark">
+            <p class="eyebrow light">Sesiunea este gata</p>
+            <h2>Cheamă gașca.</h2>
+            <div class="giant-code" id="lobbyCode">—</div>
+            <div class="share-box">
               <a id="playerLink" href="/play">/play</a>
+              <button class="button button-light" id="copyLinkButton" type="button">Copiază linkul</button>
             </div>
-            <button class="button button-secondary" id="copyLinkButton" type="button">Copiază linkul</button>
-            <p class="message compact" id="copyMessage" role="status" aria-live="polite"></p>
+            <p class="message success-message" id="copyMessage" role="status" aria-live="polite"></p>
+            <button class="button button-accent button-large button-full" id="startGameButton" type="button">
+              Începe jocul
+            </button>
+            <p class="message error-message on-dark" id="startMessage" role="alert" aria-live="assertive"></p>
           </div>
 
-          <button class="button button-primary button-start" id="startGameButton" type="button">
-            Începe jocul
-          </button>
-          <p class="message centered" id="startMessage" role="status" aria-live="polite"></p>
-        </div>
-
-        <div class="panel players-panel">
-          <div class="players-heading">
-            <div>
-              <p class="eyebrow">Lobby live</p>
-              <h2>Participanți</h2>
+          <div class="panel players-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Lobby live</p>
+                <h2>Participanți</h2>
+              </div>
+              <span class="count-bubble" id="lobbyPlayerCount">0</span>
             </div>
-            <span class="player-count" id="playerCount" aria-label="Număr participanți">0</span>
+            <div class="empty-state" id="emptyPlayers">
+              <span class="pulse-dot" aria-hidden="true"></span>
+              <p>Așteptăm primii curajoși…</p>
+            </div>
+            <ul class="player-list" id="lobbyPlayerList" aria-live="polite"></ul>
+          </div>
+        </section>
+
+        <section class="game-layout" id="gameStage" hidden>
+          <div class="panel game-panel">
+            <div class="game-topline">
+              <div>
+                <p class="eyebrow" id="phaseLabel">Răspunsuri</p>
+                <span class="question-number" id="gameQuestionNumber">Întrebarea 1 / 10</span>
+              </div>
+              <div class="timer" id="timerBox">
+                <span class="timer-value" id="timerValue">15</span>
+                <span class="timer-unit">sec</span>
+              </div>
+            </div>
+
+            <h1 class="question-text" id="questionText">Întrebarea apare aici</h1>
+
+            <div class="progress-card" id="progressCard">
+              <div>
+                <strong id="progressValue">0 / 0</strong>
+                <span id="progressLabel">răspunsuri primite</span>
+              </div>
+              <div class="progress-track" aria-hidden="true">
+                <span id="progressBar"></span>
+              </div>
+            </div>
+
+            <div class="phase-content" id="phaseContent"></div>
+            <p class="message error-message" id="gameMessage" role="alert" aria-live="assertive"></p>
           </div>
 
-          <div class="empty-state" id="emptyPlayers">
-            <span class="pulse-dot" aria-hidden="true"></span>
-            <p>Așteptăm primii curajoși…</p>
-          </div>
-          <ul class="player-list" id="playerList" aria-live="polite"></ul>
-        </div>
+          <aside class="panel roster-panel">
+            <div class="section-heading compact-heading">
+              <div>
+                <p class="eyebrow">În joc</p>
+                <h2>Gașca</h2>
+              </div>
+              <span class="count-bubble" id="gamePlayerCount">0</span>
+            </div>
+            <ul class="player-list single-column" id="gamePlayerList"></ul>
+          </aside>
+        </section>
       </section>
     </main>
 
