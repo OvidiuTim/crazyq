@@ -93,3 +93,78 @@ Dacă telefonul nu se poate conecta, permite Node.js prin Windows Firewall pentr
 ## Persistență
 
 SQLite păstrează întrebările, sesiunile, participanții, răspunsurile, voturile și scorurile. Socket.IO gestionează actualizările live și timerul. După repornirea serverului, o sesiune poate fi reluată, iar unei faze de răspuns active i se acordă un timer nou de 15 secunde.
+
+## Deploy pe VPS
+
+Aplicația trebuie rulată pe un VPS cu Node.js 20 sau mai nou. Domeniul `crazyq.example.ro` trebuie să aibă o înregistrare DNS către IP-ul VPS-ului.
+
+Clonează proiectul și verifică pornirea:
+
+```bash
+git clone <URL-REPOSITORY> crazyq
+cd crazyq
+npm install
+npm start
+```
+
+Comanda `npm start` rulează `node server.js`. Aplicația folosește portul din variabila de mediu `PORT`, iar în lipsa acesteia pornește pe portul `3000`.
+
+Pentru rulare permanentă, oprește procesul pornit manual și folosește PM2:
+
+```bash
+npm install --global pm2
+pm2 start server.js --name crazyq
+pm2 save
+pm2 startup
+```
+
+Ultima comandă afișează o comandă suplimentară care trebuie rulată cu drepturi de administrator pentru ca PM2 să pornească automat după restartarea VPS-ului.
+
+Rulează CrazyQ într-un singur proces PM2, fără cluster mode. SQLite este local, iar timerele și conexiunile sesiunilor active sunt ținute în memoria procesului. Directorul `data/` trebuie să poată fi scris de utilizatorul care rulează aplicația și este recomandat să faci backup periodic pentru `data/crazyq.db`.
+
+### Configurație Nginx
+
+Exemplul următor poate fi salvat în `/etc/nginx/sites-available/crazyq`. Directiva `map` trebuie să fie în contextul `http`; fișierele încărcate din `sites-enabled` sunt în mod normal deja incluse în acest context.
+
+```nginx
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name crazyq.example.ro;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+    }
+}
+```
+
+Activează configurația și reîncarcă Nginx:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/crazyq /etc/nginx/sites-enabled/crazyq
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Porturile publice necesare sunt `80` și `443`; portul `3000` nu trebuie expus public dacă Nginx rulează pe același VPS.
+
+Socket.IO începe de regulă prin HTTP long-polling și face upgrade la WebSocket. Din acest motiv, headerele `Upgrade` și `Connection`, versiunea HTTP 1.1 și timeout-urile mărite din configurația de mai sus sunt necesare. Fără proxy WebSocket corect, lobby-ul poate părea conectat inițial, dar actualizările live se pot întrerupe.
+
+După ce varianta HTTP funcționează, configurează un certificat TLS pentru `crazyq.example.ro` (de exemplu cu Certbot) și accesează aplicația prin HTTPS.

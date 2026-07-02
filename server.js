@@ -7,8 +7,13 @@ const { Server } = require('socket.io');
 const { db, importResult } = require('./database');
 
 const app = express();
+// Nginx este singurul proxy din fața aplicației în configurația recomandată.
+app.set('trust proxy', 1);
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  transports: ['polling', 'websocket'],
+  allowUpgrades: true,
+});
 
 const PORT = process.env.PORT || 3000;
 const ANSWER_DURATION_SECONDS = Math.max(
