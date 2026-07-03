@@ -111,6 +111,21 @@ function createNotice(title, text, className = '') {
   return notice;
 }
 
+function getResultCountdownText(state, remaining) {
+  const seconds = `${remaining} ${remaining === 1 ? 'second' : 'seconds'}`;
+  return state.question.number === state.question.total
+    ? `Final leaderboard starts in ${seconds}…`
+    : `Next question starts in ${seconds}…`;
+}
+
+function updateResultCountdown(remaining) {
+  const countdown = document.querySelector('#resultCountdown');
+
+  if (countdown && currentState) {
+    countdown.textContent = getResultCountdownText(currentState, remaining);
+  }
+}
+
 function renderLobby() {
   elements.questionNumber.textContent = 'Lobby';
   elements.question.textContent = 'You joined the session';
@@ -125,6 +140,7 @@ function renderLobby() {
 function renderAnswering(state) {
   elements.timerBox.hidden = false;
   elements.timerValue.textContent = state.timer.remaining;
+  elements.timerBox.classList.toggle('is-urgent', state.timer.remaining <= 5);
 
   if (state.hasAnswered) {
     elements.phaseContent.append(createNotice(
@@ -172,7 +188,10 @@ function renderAnswering(state) {
     textarea.disabled = true;
     button.disabled = true;
     button.textContent = 'Submitting…';
-    socket.emit('answer:submit', { text }, (response) => {
+    socket.emit('answer:submit', {
+      text,
+      questionId: currentState?.question?.id,
+    }, (response) => {
       if (!response?.ok) {
         textarea.disabled = false;
         button.disabled = false;
@@ -261,14 +280,26 @@ function renderVoting(state) {
 function renderResults(state) {
   elements.timerBox.hidden = true;
   const list = document.createElement('div');
+  const heading = document.createElement('h2');
+  const countdown = document.createElement('p');
+  const favorites = state.favorites || [];
   list.className = 'results-list mobile-results';
+  heading.className = 'content-title';
+  heading.textContent = favorites.length > 1 ? 'Favorite answers' : 'Favorite answer';
+  countdown.id = 'resultCountdown';
+  countdown.className = 'result-countdown';
+  countdown.textContent = getResultCountdownText(state, state.timer.remaining);
 
-  if (!state.results?.length) {
-    elements.phaseContent.append(createNotice('No results', 'No one answered this round.'));
+  if (!favorites.length) {
+    elements.phaseContent.append(
+      heading,
+      createNotice('No favorite answer', 'No one answered this round.'),
+      countdown,
+    );
     return;
   }
 
-  state.results.forEach((result, index) => {
+  favorites.forEach((result) => {
     const item = document.createElement('article');
     const rank = document.createElement('span');
     const body = document.createElement('div');
@@ -278,17 +309,17 @@ function renderResults(state) {
 
     item.className = 'result-item';
     rank.className = 'result-rank';
-    rank.textContent = `${index + 1}`;
+    rank.textContent = '★';
     text.textContent = result.text;
     author.textContent = result.authorName;
     votes.className = 'vote-count';
-    votes.textContent = `${result.voteCount}p`;
+    votes.textContent = `${result.voteCount} ${result.voteCount === 1 ? 'vote' : 'votes'}`;
     body.append(text, author);
     item.append(rank, body, votes);
     list.append(item);
   });
 
-  elements.phaseContent.append(list, createNotice('Round over', 'The host is getting the next question ready.'));
+  elements.phaseContent.append(heading, list, countdown);
 }
 
 function createLeaderboard(leaderboard) {
@@ -409,8 +440,17 @@ elements.sessionInput.addEventListener('input', () => {
 
 socket.on('game:state', renderState);
 
-socket.on('timer:tick', ({ code, remaining }) => {
-  if (code !== activeSessionCode || currentState?.session.status !== 'answering') {
+socket.on('timer:tick', ({ code, remaining, phase }) => {
+  if (code !== activeSessionCode) {
+    return;
+  }
+
+  if (phase === 'question_result' && currentState?.session.status === 'question_result') {
+    updateResultCountdown(remaining);
+    return;
+  }
+
+  if (phase !== 'answering' || currentState?.session.status !== 'answering') {
     return;
   }
 

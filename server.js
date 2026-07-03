@@ -18,7 +18,15 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 const ANSWER_DURATION_SECONDS = Math.max(
   1,
-  Number.parseInt(process.env.ANSWER_DURATION_SECONDS, 10) || 15,
+  Number.parseInt(process.env.ANSWER_DURATION_SECONDS, 10) || 17,
+);
+const VOTING_DURATION_SECONDS = Math.max(
+  1,
+  Number.parseInt(process.env.VOTING_DURATION_SECONDS, 10) || 15,
+);
+const RESULT_DURATION_SECONDS = Math.max(
+  1,
+  Number.parseInt(process.env.RESULT_DURATION_SECONDS, 10) || 5,
 );
 const QUESTIONS_PER_GAME = 10;
 const MAX_NAME_LENGTH = 30;
@@ -60,6 +68,10 @@ function getRuntime(code) {
       hostSocketId: null,
       answerDeadline: null,
       answerTimer: null,
+      votingDeadline: null,
+      votingTimer: null,
+      resultDeadline: null,
+      resultTimer: null,
     });
   }
 
@@ -167,6 +179,38 @@ function getVotingAnswers(sessionId, questionId) {
   `).all(sessionId, questionId);
 }
 
+function getEligibleVoterIds(session, questionId) {
+  if (!session || !questionId) {
+    return [];
+  }
+
+  const answers = getVotingAnswers(session.id, questionId);
+
+  if (answers.length === 0) {
+    return [];
+  }
+
+  return getSessionPlayers(session.id)
+    .filter((player) => player.connected)
+    .filter((player) => answers.some((answer) => answer.playerId !== player.id))
+    .map((player) => player.id);
+}
+
+function haveAllEligiblePlayersVoted(session, questionId) {
+  if (!session || session.status !== 'voting' || !questionId) {
+    return false;
+  }
+
+  const eligibleVoterIds = getEligibleVoterIds(session, questionId);
+
+  if (eligibleVoterIds.length === 0) {
+    return true;
+  }
+
+  const voterPlayerIds = getVoterPlayerIds(session.id, questionId);
+  return eligibleVoterIds.every((playerId) => voterPlayerIds.has(playerId));
+}
+
 function getQuestionResults(sessionId, questionId) {
   return db.prepare(`
     SELECT
@@ -182,6 +226,17 @@ function getQuestionResults(sessionId, questionId) {
     GROUP BY a.id
     ORDER BY voteCount DESC, p.name COLLATE NOCASE ASC, a.id ASC
   `).all(sessionId, questionId);
+}
+
+function getFavoriteResults(sessionId, questionId) {
+  const results = getQuestionResults(sessionId, questionId);
+
+  if (results.length === 0) {
+    return [];
+  }
+
+  const highestVoteCount = results[0].voteCount;
+  return results.filter((result) => result.voteCount === highestVoteCount);
 }
 
 function getLeaderboard(sessionId) {
@@ -203,8 +258,15 @@ function getLeaderboard(sessionId) {
   }));
 }
 
-function getRemainingSeconds(code) {
-  const deadline = getRuntime(code).answerDeadline;
+function getPhaseDeadline(runtime, status) {
+  if (status === 'answering') return runtime.answerDeadline;
+  if (status === 'voting') return runtime.votingDeadline;
+  if (status === 'question_result') return runtime.resultDeadline;
+  return null;
+}
+
+function getRemainingSeconds(code, status) {
+  const deadline = getPhaseDeadline(getRuntime(code), status);
   return deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : 0;
 }
 
@@ -226,8 +288,8 @@ function buildBaseState(session) {
       total: totalQuestions,
     } : null,
     timer: {
-      remaining: session.status === 'answering' ? getRemainingSeconds(session.code) : 0,
-      deadline: getRuntime(session.code).answerDeadline,
+      remaining: getRemainingSeconds(session.code, session.status),
+      deadline: getPhaseDeadline(getRuntime(session.code), session.status),
     },
   };
 }
@@ -239,6 +301,7 @@ function buildAdminState(session) {
   const questionId = base.question?.id;
   const answeredPlayerIds = getAnsweredPlayerIds(session.id, questionId);
   const voterPlayerIds = getVoterPlayerIds(session.id, questionId);
+  const eligibleVoterIds = getEligibleVoterIds(session, questionId);
   const state = {
     ...base,
     players,
@@ -247,7 +310,8 @@ function buildAdminState(session) {
       playersRegistered: players.length,
       playersConnected: activePlayers.length,
       answersSubmitted: activePlayers.filter((player) => answeredPlayerIds.has(player.id)).length,
-      votesSubmitted: activePlayers.filter((player) => voterPlayerIds.has(player.id)).length,
+      eligibleVoters: eligibleVoterIds.length,
+      votesSubmitted: eligibleVoterIds.filter((playerId) => voterPlayerIds.has(playerId)).length,
     },
   };
 
@@ -261,6 +325,7 @@ function buildAdminState(session) {
 
   if (session.status === 'question_result') {
     state.results = getQuestionResults(session.id, questionId);
+    state.favorites = getFavoriteResults(session.id, questionId);
   }
 
   if (session.status === 'finished') {
@@ -303,6 +368,7 @@ function buildPlayerState(session, playerId) {
 
   if (session.status === 'question_result') {
     state.results = getQuestionResults(session.id, questionId);
+    state.favorites = getFavoriteResults(session.id, questionId);
   }
 
   if (session.status === 'finished') {
@@ -377,17 +443,32 @@ function clearAnswerTimer(code) {
   runtime.answerDeadline = null;
 }
 
-function transitionToVoting(code) {
-  const session = getSession(code);
+function clearVotingTimer(code) {
+  const runtime = getRuntime(code);
 
-  if (!session || session.status !== 'answering') {
-    return;
+  if (runtime.votingTimer) {
+    clearInterval(runtime.votingTimer);
+    runtime.votingTimer = null;
   }
 
-  clearAnswerTimer(session.code);
-  db.prepare("UPDATE sessions SET status = 'voting' WHERE id = ?").run(session.id);
-  io.to(sessionRoom(session.code)).emit('timer:tick', { code: session.code, remaining: 0 });
-  emitState(session.code);
+  runtime.votingDeadline = null;
+}
+
+function clearResultTimer(code) {
+  const runtime = getRuntime(code);
+
+  if (runtime.resultTimer) {
+    clearInterval(runtime.resultTimer);
+    runtime.resultTimer = null;
+  }
+
+  runtime.resultDeadline = null;
+}
+
+function clearSessionTimers(code) {
+  clearAnswerTimer(code);
+  clearVotingTimer(code);
+  clearResultTimer(code);
 }
 
 function scheduleAnswerTimer(code) {
@@ -397,19 +478,34 @@ function scheduleAnswerTimer(code) {
     return;
   }
 
-  clearAnswerTimer(session.code);
+  clearSessionTimers(session.code);
   const runtime = getRuntime(session.code);
   runtime.answerDeadline = Date.now() + ANSWER_DURATION_SECONDS * 1000;
+  const expectedQuestionIndex = session.current_question_index;
 
   io.to(sessionRoom(session.code)).emit('timer:tick', {
     code: session.code,
     remaining: ANSWER_DURATION_SECONDS,
+    phase: 'answering',
   });
   emitState(session.code);
 
   runtime.answerTimer = setInterval(() => {
-    const remaining = getRemainingSeconds(session.code);
-    io.to(sessionRoom(session.code)).emit('timer:tick', { code: session.code, remaining });
+    const currentSession = getSession(session.code);
+
+    if (!currentSession
+      || currentSession.status !== 'answering'
+      || currentSession.current_question_index !== expectedQuestionIndex) {
+      clearAnswerTimer(session.code);
+      return;
+    }
+
+    const remaining = getRemainingSeconds(session.code, 'answering');
+    io.to(sessionRoom(session.code)).emit('timer:tick', {
+      code: session.code,
+      remaining,
+      phase: 'answering',
+    });
 
     if (remaining <= 0) {
       transitionToVoting(session.code);
@@ -417,11 +513,183 @@ function scheduleAnswerTimer(code) {
   }, 1000);
 }
 
-function ensureAnswerTimer(session) {
+function transitionToVoting(code) {
+  const session = getSession(code);
+
+  if (!session || session.status !== 'answering') {
+    return false;
+  }
+
+  clearAnswerTimer(session.code);
+  io.to(sessionRoom(session.code)).emit('timer:tick', {
+    code: session.code,
+    remaining: 0,
+    phase: 'answering',
+  });
+  db.prepare("UPDATE sessions SET status = 'voting' WHERE id = ?").run(session.id);
+  scheduleVotingTimer(session.code);
+  return true;
+}
+
+function scheduleVotingTimer(code) {
+  const session = getSession(code);
+
+  if (!session || session.status !== 'voting') {
+    return;
+  }
+
+  clearVotingTimer(session.code);
+  clearResultTimer(session.code);
+  const runtime = getRuntime(session.code);
+  runtime.votingDeadline = Date.now() + VOTING_DURATION_SECONDS * 1000;
+  const expectedQuestionIndex = session.current_question_index;
+
+  io.to(sessionRoom(session.code)).emit('timer:tick', {
+    code: session.code,
+    remaining: VOTING_DURATION_SECONDS,
+    phase: 'voting',
+  });
+  emitState(session.code);
+
+  const question = getCurrentQuestion(session);
+  if (haveAllEligiblePlayersVoted(session, question?.id)) {
+    transitionToQuestionResult(session.code);
+    return;
+  }
+
+  runtime.votingTimer = setInterval(() => {
+    const currentSession = getSession(session.code);
+
+    if (!currentSession
+      || currentSession.status !== 'voting'
+      || currentSession.current_question_index !== expectedQuestionIndex) {
+      clearVotingTimer(session.code);
+      return;
+    }
+
+    const remaining = getRemainingSeconds(session.code, 'voting');
+    io.to(sessionRoom(session.code)).emit('timer:tick', {
+      code: session.code,
+      remaining,
+      phase: 'voting',
+    });
+
+    if (remaining <= 0) {
+      transitionToQuestionResult(session.code);
+    }
+  }, 1000);
+}
+
+function transitionToQuestionResult(code) {
+  const session = getSession(code);
+
+  if (!session || session.status !== 'voting') {
+    return false;
+  }
+
+  clearVotingTimer(session.code);
+  io.to(sessionRoom(session.code)).emit('timer:tick', {
+    code: session.code,
+    remaining: 0,
+    phase: 'voting',
+  });
+  db.prepare("UPDATE sessions SET status = 'question_result' WHERE id = ?").run(session.id);
+  scheduleResultTimer(session.code);
+  return true;
+}
+
+function scheduleResultTimer(code) {
+  const session = getSession(code);
+
+  if (!session || session.status !== 'question_result') {
+    return;
+  }
+
+  clearResultTimer(session.code);
+  const runtime = getRuntime(session.code);
+  runtime.resultDeadline = Date.now() + RESULT_DURATION_SECONDS * 1000;
+  const expectedQuestionIndex = session.current_question_index;
+
+  io.to(sessionRoom(session.code)).emit('timer:tick', {
+    code: session.code,
+    remaining: RESULT_DURATION_SECONDS,
+    phase: 'question_result',
+  });
+  emitState(session.code);
+
+  runtime.resultTimer = setInterval(() => {
+    const currentSession = getSession(session.code);
+
+    if (!currentSession
+      || currentSession.status !== 'question_result'
+      || currentSession.current_question_index !== expectedQuestionIndex) {
+      clearResultTimer(session.code);
+      return;
+    }
+
+    const remaining = getRemainingSeconds(session.code, 'question_result');
+    io.to(sessionRoom(session.code)).emit('timer:tick', {
+      code: session.code,
+      remaining,
+      phase: 'question_result',
+    });
+
+    if (remaining <= 0) {
+      advanceFromQuestionResult(session.code, expectedQuestionIndex);
+    }
+  }, 1000);
+}
+
+function advanceFromQuestionResult(code, expectedQuestionIndex = null) {
+  const session = getSession(code);
+
+  if (!session
+    || session.status !== 'question_result'
+    || (expectedQuestionIndex !== null
+      && session.current_question_index !== expectedQuestionIndex)) {
+    return null;
+  }
+
+  clearResultTimer(session.code);
+  io.to(sessionRoom(session.code)).emit('timer:tick', {
+    code: session.code,
+    remaining: 0,
+    phase: 'question_result',
+  });
+
+  const totalQuestions = getQuestionCount(session.id);
+  const isLastQuestion = session.current_question_index >= totalQuestions - 1;
+
+  if (isLastQuestion) {
+    db.prepare("UPDATE sessions SET status = 'finished' WHERE id = ?").run(session.id);
+    emitState(session.code);
+    return { finished: true };
+  }
+
+  db.prepare(`
+    UPDATE sessions
+    SET status = 'answering', current_question_index = current_question_index + 1
+    WHERE id = ?
+  `).run(session.id);
+  scheduleAnswerTimer(session.code);
+  return { finished: false };
+}
+
+function ensurePhaseTimer(session) {
   const runtime = getRuntime(session.code);
 
   if (session.status === 'answering' && !runtime.answerTimer) {
     scheduleAnswerTimer(session.code);
+    return true;
+  }
+
+  if (session.status === 'voting' && !runtime.votingTimer) {
+    scheduleVotingTimer(session.code);
+    return true;
+  }
+
+  if (session.status === 'question_result' && !runtime.resultTimer) {
+    scheduleResultTimer(session.code);
     return true;
   }
 
@@ -537,7 +805,7 @@ io.on('connection', (socket) => {
     bindHostToSession(socket, session);
     reply({ ok: true, session: { id: session.id, code: session.code } });
 
-    if (!ensureAnswerTimer(session)) {
+    if (!ensurePhaseTimer(session)) {
       emitAdminState(session.code);
     }
   });
@@ -660,7 +928,9 @@ io.on('connection', (socket) => {
 
     if (haveAllActivePlayersAnswered(session, currentQuestion?.id)) {
       transitionToVoting(session.code);
-    } else if (!ensureAnswerTimer(session)) {
+    } else if (haveAllEligiblePlayersVoted(session, currentQuestion?.id)) {
+      transitionToQuestionResult(session.code);
+    } else if (!ensurePhaseTimer(session)) {
       emitAdminState(session.code);
       emitPlayerState(session.code, player.id);
     }
@@ -700,6 +970,12 @@ io.on('connection', (socket) => {
     }
 
     const question = getCurrentQuestion(session);
+    const submittedQuestionId = Number.parseInt(payload.questionId, 10);
+
+    if (submittedQuestionId && submittedQuestionId !== question?.id) {
+      reply({ ok: false, error: 'This question is no longer accepting answers.' });
+      return;
+    }
 
     try {
       db.prepare(`
@@ -739,6 +1015,13 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const runtime = getRuntime(session.code);
+    if (runtime.votingDeadline && Date.now() >= runtime.votingDeadline) {
+      transitionToQuestionResult(session.code);
+      reply({ ok: false, error: 'Voting has ended.' });
+      return;
+    }
+
     const question = getCurrentQuestion(session);
     const answer = db.prepare(`
       SELECT id, player_id AS playerId
@@ -770,62 +1053,73 @@ io.on('connection', (socket) => {
     }
 
     reply({ ok: true });
-    emitAdminState(session.code);
-    emitPlayerState(session.code, player.id);
+
+    if (haveAllEligiblePlayersVoted(session, question.id)) {
+      transitionToQuestionResult(session.code);
+    } else {
+      emitAdminState(session.code);
+      emitPlayerState(session.code, player.id);
+    }
   });
 
   registerSocketHandler(socket, 'voting:close', (payload, reply) => {
     const code = normalizeSessionCode(payload.sessionCode);
     const session = getSession(code);
     const runtime = session ? getRuntime(session.code) : null;
+    const expectedQuestionIndex = Number.parseInt(payload.questionIndex, 10);
 
     if (!session || runtime.hostSocketId !== socket.id) {
       reply({ ok: false, error: 'Only the host can close voting.' });
       return;
     }
 
+    if (Number.isInteger(expectedQuestionIndex)
+      && expectedQuestionIndex !== session.current_question_index) {
+      reply({ ok: true, alreadyAdvanced: true });
+      return;
+    }
+
     if (session.status !== 'voting') {
+      if (['question_result', 'answering', 'finished'].includes(session.status)) {
+        reply({ ok: true, alreadyAdvanced: true });
+        return;
+      }
       reply({ ok: false, error: 'The session is not in the voting phase.' });
       return;
     }
 
-    db.prepare("UPDATE sessions SET status = 'question_result' WHERE id = ?").run(session.id);
     reply({ ok: true });
-    emitState(session.code);
+    transitionToQuestionResult(session.code);
   });
 
   registerSocketHandler(socket, 'question:next', (payload, reply) => {
     const code = normalizeSessionCode(payload.sessionCode);
     const session = getSession(code);
     const runtime = session ? getRuntime(session.code) : null;
+    const expectedQuestionIndex = Number.parseInt(payload.questionIndex, 10);
 
     if (!session || runtime.hostSocketId !== socket.id) {
       reply({ ok: false, error: 'Only the host can continue the game.' });
       return;
     }
 
+    if (Number.isInteger(expectedQuestionIndex)
+      && expectedQuestionIndex !== session.current_question_index) {
+      reply({ ok: true, alreadyAdvanced: true });
+      return;
+    }
+
     if (session.status !== 'question_result') {
+      if (['answering', 'voting', 'finished'].includes(session.status)) {
+        reply({ ok: true, alreadyAdvanced: true, finished: session.status === 'finished' });
+        return;
+      }
       reply({ ok: false, error: 'The question result is not being shown yet.' });
       return;
     }
 
-    const totalQuestions = getQuestionCount(session.id);
-    const isLastQuestion = session.current_question_index >= totalQuestions - 1;
-
-    if (isLastQuestion) {
-      db.prepare("UPDATE sessions SET status = 'finished' WHERE id = ?").run(session.id);
-      reply({ ok: true, finished: true });
-      emitState(session.code);
-      return;
-    }
-
-    db.prepare(`
-      UPDATE sessions
-      SET status = 'answering', current_question_index = current_question_index + 1
-      WHERE id = ?
-    `).run(session.id);
-    reply({ ok: true, finished: false });
-    scheduleAnswerTimer(session.code);
+    const result = advanceFromQuestionResult(session.code, session.current_question_index);
+    reply({ ok: true, finished: result.finished });
   });
 
   socket.on('disconnect', () => {
@@ -854,6 +1148,8 @@ io.on('connection', (socket) => {
 
       if (haveAllActivePlayersAnswered(session, question?.id)) {
         transitionToVoting(session.code);
+      } else if (haveAllEligiblePlayersVoted(session, question?.id)) {
+        transitionToQuestionResult(session.code);
       } else {
         emitAdminState(playerCode);
       }
@@ -868,7 +1164,7 @@ server.listen(PORT, () => {
 
 function shutdown() {
   for (const [code] of runtimeSessions) {
-    clearAnswerTimer(code);
+    clearSessionTimers(code);
   }
 
   server.close(() => {

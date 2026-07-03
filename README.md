@@ -66,10 +66,10 @@ To rebuild the question import from scratch during development, stop the server,
 1. The host opens `/admin`, creates a session, and shares the code or player link.
 2. Players open `/play`, choose a name, and press Join.
 3. The host starts the game; the application randomly selects 10 questions without repeats.
-4. Players have 15 seconds to answer each question. Voting starts early when every active player has answered.
-5. Players vote for an answer that is not their own.
-6. The host closes voting, reveals the result, and moves to the next question.
-7. After question 10, the final leaderboard appears on every screen.
+4. Players have 17 seconds to answer each question. Voting starts early when every active player has answered.
+5. Players vote for an answer that is not their own. Voting closes as soon as every eligible player has voted, with a 15-second safety timeout.
+6. The favorite answer is shown for 5 seconds, then the next question starts automatically.
+7. After question 10, the final leaderboard appears automatically on every screen.
 
 Each vote gives one point to the author of that answer. Players with the same score are sorted alphabetically.
 
@@ -92,7 +92,7 @@ If the phone cannot connect, allow Node.js through Windows Firewall for private 
 
 ## Persistence
 
-SQLite stores questions, sessions, players, answers, votes, and scores. Socket.IO handles live updates and the timer. After a server restart, a session can be resumed; an active answering phase receives a fresh 15-second timer.
+SQLite stores questions, sessions, players, answers, votes, and scores. Socket.IO handles live updates and the timers. After a server restart, a session can be resumed; active phases receive a fresh phase timer.
 
 ## Deploy to a VPS
 

@@ -735,6 +735,13 @@ a:focus-visible,
   gap: 10px;
 }
 
+.result-countdown {
+  margin: 18px 0 0;
+  color: var(--primary);
+  font-weight: 850;
+  text-align: center;
+}
+
 .result-item {
   padding: 15px 17px;
   border: 1px solid var(--border);

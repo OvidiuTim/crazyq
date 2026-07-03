@@ -122,6 +122,21 @@ function createEmptyNotice(text) {
   return notice;
 }
 
+function getResultCountdownText(state, remaining) {
+  const seconds = `${remaining} ${remaining === 1 ? 'second' : 'seconds'}`;
+  return state.question.number === state.question.total
+    ? `Final leaderboard starts in ${seconds}…`
+    : `Next question starts in ${seconds}…`;
+}
+
+function updateResultCountdown(remaining) {
+  const countdown = document.querySelector('#resultCountdown');
+
+  if (countdown && currentState) {
+    countdown.textContent = getResultCountdownText(currentState, remaining);
+  }
+}
+
 function renderVoting(state) {
   const container = document.createElement('div');
   const heading = document.createElement('h2');
@@ -162,13 +177,14 @@ function renderResults(state) {
   const button = document.createElement('button');
 
   heading.className = 'content-title';
-  heading.textContent = "The crowd's verdict";
+  const favorites = state.favorites || [];
+  heading.textContent = favorites.length > 1 ? 'Favorite answers' : 'Favorite answer';
   list.className = 'results-list';
 
-  if (!state.results?.length) {
-    list.append(createEmptyNotice('No answers this round.'));
+  if (!favorites.length) {
+    list.append(createEmptyNotice('No favorite answer this round.'));
   } else {
-    state.results.forEach((result, index) => {
+    favorites.forEach((result) => {
       const item = document.createElement('article');
       const rank = document.createElement('span');
       const body = document.createElement('div');
@@ -178,7 +194,7 @@ function renderResults(state) {
 
       item.className = 'result-item';
       rank.className = 'result-rank';
-      rank.textContent = `${index + 1}`;
+      rank.textContent = '★';
       text.textContent = result.text;
       author.textContent = result.authorName;
       votes.className = 'vote-count';
@@ -190,11 +206,15 @@ function renderResults(state) {
   }
 
   const isLast = state.question.number === state.question.total;
+  const countdown = document.createElement('p');
+  countdown.id = 'resultCountdown';
+  countdown.className = 'result-countdown';
+  countdown.textContent = getResultCountdownText(state, state.timer.remaining);
   button.className = 'button button-primary button-large button-full phase-action';
   button.type = 'button';
   button.textContent = isLast ? 'View final leaderboard' : 'Next question';
   button.addEventListener('click', () => nextQuestion(button));
-  container.append(heading, list, button);
+  container.append(heading, list, countdown, button);
   elements.phaseContent.append(container);
 }
 
@@ -268,12 +288,13 @@ function renderGame(state) {
   elements.questionText.textContent = state.question.text;
   elements.timerBox.hidden = status !== 'answering';
   elements.timerValue.textContent = state.timer.remaining;
+  elements.timerBox.classList.toggle('is-urgent', status === 'answering' && state.timer.remaining <= 5);
 
   if (status === 'answering') {
     updateProgress(state.progress.answersSubmitted, state.progress.playersTotal, 'answers received');
     elements.phaseContent.append(createEmptyNotice('Players are writing their answers. Keep an eye on the counter — voting starts automatically.'));
   } else if (status === 'voting') {
-    updateProgress(state.progress.votesSubmitted, state.progress.playersTotal, 'votes submitted');
+    updateProgress(state.progress.votesSubmitted, state.progress.eligibleVoters, 'votes submitted');
     renderVoting(state);
   } else if (status === 'question_result') {
     renderResults(state);
@@ -318,7 +339,10 @@ function resumeSession() {
 
 function closeVoting(button) {
   setButtonLoading(button, true, 'Close voting', 'Closing…');
-  socket.emit('voting:close', { sessionCode: activeSessionCode }, (response) => {
+  socket.emit('voting:close', {
+    sessionCode: activeSessionCode,
+    questionIndex: currentState?.session.currentQuestionIndex,
+  }, (response) => {
     if (!response?.ok) {
       setButtonLoading(button, false, 'Close voting', 'Closing…');
       elements.gameMessage.textContent = response?.error || 'Voting could not be closed.';
@@ -329,7 +353,10 @@ function closeVoting(button) {
 function nextQuestion(button) {
   const normalText = button.textContent;
   setButtonLoading(button, true, normalText, 'Getting ready…');
-  socket.emit('question:next', { sessionCode: activeSessionCode }, (response) => {
+  socket.emit('question:next', {
+    sessionCode: activeSessionCode,
+    questionIndex: currentState?.session.currentQuestionIndex,
+  }, (response) => {
     if (!response?.ok) {
       setButtonLoading(button, false, normalText, 'Getting ready…');
       elements.gameMessage.textContent = response?.error || 'The game could not continue.';
@@ -382,10 +409,18 @@ elements.newSessionButton.addEventListener('click', () => {
 
 socket.on('admin:state', renderState);
 
-socket.on('timer:tick', ({ code, remaining }) => {
-  if (code === activeSessionCode && currentState?.session.status === 'answering') {
+socket.on('timer:tick', ({ code, remaining, phase }) => {
+  if (code !== activeSessionCode) {
+    return;
+  }
+
+  if (phase === 'answering' && currentState?.session.status === 'answering') {
     elements.timerValue.textContent = remaining;
     elements.timerBox.classList.toggle('is-urgent', remaining <= 5);
+  }
+
+  if (phase === 'question_result' && currentState?.session.status === 'question_result') {
+    updateResultCountdown(remaining);
   }
 });
 
