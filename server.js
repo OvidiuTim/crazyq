@@ -700,6 +700,7 @@ const chooseSessionQuestions = db.transaction((sessionId) => {
   const questions = db.prepare(`
     SELECT id
     FROM questions
+    WHERE active = 1
     ORDER BY RANDOM()
     LIMIT ?
   `).all(QUESTIONS_PER_GAME);
@@ -825,11 +826,15 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const questionCount = db.prepare('SELECT COUNT(*) AS count FROM questions').get().count;
+    const questionCount = db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM questions
+      WHERE active = 1
+    `).get().count;
     if (questionCount < QUESTIONS_PER_GAME) {
       reply({
         ok: false,
-        error: `Add at least ${QUESTIONS_PER_GAME} questions to data/questions.txt and recreate the database.`,
+        error: `Add at least ${QUESTIONS_PER_GAME} questions to data/questions.txt and restart the server.`,
       });
       return;
     }
@@ -1159,7 +1164,10 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, () => {
   console.log(`CrazyQ is running at http://localhost:${PORT}`);
-  console.log(`Questions in SQLite: ${importResult.total} (${importResult.imported} imported now)`);
+  console.log(
+    `Questions in SQLite: ${importResult.total} active `
+    + `(${importResult.imported} imported, ${importResult.updated} updated now)`,
+  );
 });
 
 function shutdown() {

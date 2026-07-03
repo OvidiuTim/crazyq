@@ -57,9 +57,7 @@ const questions = [
 ];
 ```
 
-On first launch, the application creates `data/crazyq.db`, creates the tables, and imports the questions when the `questions` table is empty. Duplicates are ignored. A game needs at least 10 questions.
-
-To rebuild the question import from scratch during development, stop the server, delete `data/crazyq.db`, and start the application again. The SQLite `-wal` and `-shm` files may be deleted with the database only while the server is stopped.
+On launch, the application creates `data/crazyq.db`, creates the tables, and synchronizes the active question list with `data/questions.txt`. Restart the server after editing the file. Existing sessions keep their question references, while new games only use questions from the current file. Duplicates are ignored. A game needs at least 10 questions.
 
 ## How to play
 

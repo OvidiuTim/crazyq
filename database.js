@@ -87,6 +87,15 @@ db.exec(`
     ON votes(session_id, question_id);
 `);
 
+const questionColumns = db.prepare('PRAGMA table_info(questions)').all();
+
+if (!questionColumns.some((column) => column.name === 'active')) {
+  db.exec(`
+    ALTER TABLE questions
+    ADD COLUMN active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1));
+  `);
+}
+
 // Socket-urile nu supraviețuiesc unei reporniri de server.
 db.prepare('UPDATE players SET socket_id = NULL').run();
 
@@ -143,40 +152,78 @@ function parseQuestionsFile(source) {
   return Array.from(uniqueQuestions.values());
 }
 
-function importQuestionsIfEmpty() {
-  const { count } = db.prepare('SELECT COUNT(*) AS count FROM questions').get();
-
-  if (count > 0) {
-    return { imported: 0, total: count };
-  }
-
+function syncQuestions() {
   if (!fs.existsSync(questionsPath)) {
     fs.writeFileSync(questionsPath, '', 'utf8');
-    return { imported: 0, total: 0 };
   }
 
   const questions = parseQuestionsFile(fs.readFileSync(questionsPath, 'utf8'));
-  const insertQuestion = db.prepare('INSERT OR IGNORE INTO questions (text) VALUES (?)');
-  const importAll = db.transaction((items) => {
+  const synchronize = db.transaction((items) => {
+    const existingQuestions = db.prepare(`
+      SELECT id, text
+      FROM questions
+      ORDER BY id ASC
+    `).all();
+    const existingByText = new Map(existingQuestions.map((question) => [
+      question.text.toLocaleLowerCase('ro-RO'),
+      question,
+    ]));
+    const usedIds = new Set();
+    const pendingQuestions = [];
     let imported = 0;
+    let updated = 0;
+
+    db.prepare('UPDATE questions SET active = 0').run();
+
+    const activateQuestion = db.prepare('UPDATE questions SET active = 1 WHERE id = ?');
 
     for (const question of items) {
-      imported += insertQuestion.run(question).changes;
+      const existingQuestion = existingByText.get(question.toLocaleLowerCase('ro-RO'));
+
+      if (existingQuestion && !usedIds.has(existingQuestion.id)) {
+        activateQuestion.run(existingQuestion.id);
+        usedIds.add(existingQuestion.id);
+      } else {
+        pendingQuestions.push(question);
+      }
     }
 
-    return imported;
+    const reusableQuestions = existingQuestions.filter((question) => !usedIds.has(question.id));
+    const updateQuestion = db.prepare('UPDATE questions SET text = ?, active = 1 WHERE id = ?');
+    const insertQuestion = db.prepare('INSERT INTO questions (text, active) VALUES (?, 1)');
+
+    for (const question of pendingQuestions) {
+      const reusableQuestion = reusableQuestions.shift();
+
+      if (reusableQuestion) {
+        updateQuestion.run(question, reusableQuestion.id);
+        updated += 1;
+      } else {
+        insertQuestion.run(question);
+        imported += 1;
+      }
+    }
+
+    return { imported, updated };
   });
 
-  const imported = importAll(questions);
-  return { imported, total: db.prepare('SELECT COUNT(*) AS count FROM questions').get().count };
+  const result = synchronize(questions);
+  const { count: total } = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM questions
+    WHERE active = 1
+  `).get();
+
+  return { ...result, total };
 }
 
-const importResult = importQuestionsIfEmpty();
+const importResult = syncQuestions();
 
 module.exports = {
   db,
   databasePath,
   questionsPath,
   parseQuestionsFile,
+  syncQuestions,
   importResult,
 };
