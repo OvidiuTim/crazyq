@@ -22,10 +22,10 @@ const elements = {
 
 const statusLabels = {
   lobby: 'Lobby',
-  answering: 'Scrie răspunsul',
-  voting: 'Votează',
-  question_result: 'Rezultat',
-  finished: 'Clasament final',
+  answering: 'Write your answer',
+  voting: 'Vote',
+  question_result: 'Question result',
+  finished: 'Final leaderboard',
 };
 
 const querySession = new URLSearchParams(window.location.search).get('session');
@@ -56,7 +56,7 @@ function savePlayer(code, player) {
 
 function setJoining(loading) {
   elements.joinButton.disabled = loading;
-  elements.joinButton.textContent = loading ? 'Intrăm…' : 'Join';
+  elements.joinButton.textContent = loading ? 'Joining…' : 'Join';
 }
 
 function openGame(session, player) {
@@ -88,9 +88,9 @@ function joinSession({ code, name, playerId = null, silent = false }) {
       if (silent) {
         elements.joinView.hidden = false;
         elements.gameView.hidden = true;
-        elements.joinMessage.textContent = response?.error || 'Nu am putut relua sesiunea.';
+        elements.joinMessage.textContent = response?.error || 'The session could not be resumed.';
       } else {
-        elements.joinMessage.textContent = response?.error || 'Nu am putut intra în sesiune.';
+        elements.joinMessage.textContent = response?.error || 'Could not join the session.';
       }
       return;
     }
@@ -113,11 +113,11 @@ function createNotice(title, text, className = '') {
 
 function renderLobby() {
   elements.questionNumber.textContent = 'Lobby';
-  elements.question.textContent = 'Ai intrat în sesiune';
+  elements.question.textContent = 'You joined the session';
   elements.timerBox.hidden = true;
   elements.phaseContent.append(createNotice(
-    'Ești înăuntru ✓',
-    'Ține telefonul aproape. Hostul pornește jocul imediat ce se strânge gașca.',
+    "You're in ✓",
+    'Keep your phone close. The host will start as soon as the crew is ready.',
     'success-notice',
   ));
 }
@@ -128,8 +128,8 @@ function renderAnswering(state) {
 
   if (state.hasAnswered) {
     elements.phaseContent.append(createNotice(
-      'Răspuns trimis ✓',
-      'Perfect. Așteaptă să vedem ce au inventat ceilalți.',
+      'Answer submitted ✓',
+      'Perfect. Wait and see what everyone else came up with.',
       'success-notice',
     ));
     return;
@@ -144,15 +144,15 @@ function renderAnswering(state) {
 
   form.className = 'answer-form';
   label.htmlFor = 'answerInput';
-  label.textContent = 'Răspunsul tău';
+  label.textContent = 'Your answer';
   textarea.id = 'answerInput';
   textarea.maxLength = 280;
   textarea.rows = 4;
-  textarea.placeholder = 'Scrie ceva genial sau complet absurd…';
+  textarea.placeholder = 'Write something brilliant or completely ridiculous…';
   counter.textContent = '0 / 280';
   button.className = 'button button-primary button-large button-full';
   button.type = 'submit';
-  button.textContent = 'Trimite răspunsul';
+  button.textContent = 'Submit answer';
 
   textarea.addEventListener('input', () => {
     counter.textContent = `${textarea.value.length} / 280`;
@@ -164,20 +164,20 @@ function renderAnswering(state) {
     const text = textarea.value.trim();
 
     if (!text) {
-      elements.playerMessage.textContent = 'Răspunsul nu poate fi gol.';
+      elements.playerMessage.textContent = 'Your answer cannot be empty.';
       textarea.focus();
       return;
     }
 
     textarea.disabled = true;
     button.disabled = true;
-    button.textContent = 'Se trimite…';
+    button.textContent = 'Submitting…';
     socket.emit('answer:submit', { text }, (response) => {
       if (!response?.ok) {
         textarea.disabled = false;
         button.disabled = false;
-        button.textContent = 'Trimite răspunsul';
-        elements.playerMessage.textContent = response?.error || 'Răspunsul nu a putut fi trimis.';
+        button.textContent = 'Submit answer';
+        elements.playerMessage.textContent = response?.error || 'Your answer could not be submitted.';
       }
     });
   });
@@ -193,7 +193,7 @@ function submitVote(answerId, button, isOwn) {
   elements.playerMessage.textContent = '';
 
   if (isOwn) {
-    elements.playerMessage.textContent = 'Nu poți vota propriul răspuns. Măcar ai încercat.';
+    elements.playerMessage.textContent = "You can't vote for your own answer. At least you tried.";
     return;
   }
 
@@ -205,7 +205,7 @@ function submitVote(answerId, button, isOwn) {
     if (!response?.ok) {
       buttons.forEach((option) => { option.disabled = false; });
       button.classList.remove('is-selected');
-      elements.playerMessage.textContent = response?.error || 'Votul nu a putut fi trimis.';
+      elements.playerMessage.textContent = response?.error || 'Your vote could not be submitted.';
     }
   });
 }
@@ -215,8 +215,8 @@ function renderVoting(state) {
 
   if (state.hasVoted) {
     elements.phaseContent.append(createNotice(
-      'Vot trimis ✓',
-      'Alegerea ta e înregistrată. Hostul va dezvălui rezultatul.',
+      'Vote submitted ✓',
+      'Your vote is in. The host will reveal the result.',
       'success-notice',
     ));
     return;
@@ -225,11 +225,11 @@ function renderVoting(state) {
   const intro = document.createElement('p');
   const list = document.createElement('div');
   intro.className = 'vote-intro';
-  intro.textContent = 'Alege răspunsul tău preferat. Al tău rămâne în afara competiției.';
+  intro.textContent = 'Pick your favorite answer. Your own answer is off-limits.';
   list.className = 'vote-list';
 
   if (!state.answers?.length) {
-    elements.phaseContent.append(createNotice('Niciun răspuns', 'Runda aceasta a fost suspect de liniștită.'));
+    elements.phaseContent.append(createNotice('No answers', 'This round was suspiciously quiet.'));
     return;
   }
 
@@ -247,7 +247,7 @@ function renderVoting(state) {
     button.append(number, text);
 
     if (answer.isOwn) {
-      own.textContent = 'răspunsul tău';
+      own.textContent = 'your answer';
       button.append(own);
     }
 
@@ -264,7 +264,7 @@ function renderResults(state) {
   list.className = 'results-list mobile-results';
 
   if (!state.results?.length) {
-    elements.phaseContent.append(createNotice('Fără rezultate', 'Nimeni nu a răspuns în această rundă.'));
+    elements.phaseContent.append(createNotice('No results', 'No one answered this round.'));
     return;
   }
 
@@ -288,7 +288,7 @@ function renderResults(state) {
     list.append(item);
   });
 
-  elements.phaseContent.append(list, createNotice('Runda s-a încheiat', 'Hostul pregătește următoarea întrebare.'));
+  elements.phaseContent.append(list, createNotice('Round over', 'The host is getting the next question ready.'));
 }
 
 function createLeaderboard(leaderboard) {
@@ -312,7 +312,7 @@ function createLeaderboard(leaderboard) {
     place.className = 'podium-place';
     place.textContent = `${index + 1}`;
     name.textContent = player.name;
-    score.textContent = `${player.score} p`;
+    score.textContent = `${player.score} pts`;
     card.append(place, name, score);
     podium.append(card);
   });
@@ -324,7 +324,7 @@ function createLeaderboard(leaderboard) {
     const score = document.createElement('span');
     rank.textContent = `${player.rank}`;
     name.textContent = player.name;
-    score.textContent = `${player.score} p`;
+    score.textContent = `${player.score} pts`;
     row.append(rank, name, score);
     rest.append(row);
   });
@@ -345,14 +345,14 @@ function renderState(state) {
   }
 
   if (state.session.status === 'finished') {
-    elements.questionNumber.textContent = 'Joc încheiat';
-    elements.question.textContent = 'Clasamentul final';
+    elements.questionNumber.textContent = 'Game over';
+    elements.question.textContent = 'Final leaderboard';
     elements.timerBox.hidden = true;
     elements.phaseContent.append(createLeaderboard(state.leaderboard || []));
     return;
   }
 
-  elements.questionNumber.textContent = `Întrebarea ${state.question.number} / ${state.question.total}`;
+  elements.questionNumber.textContent = `Question ${state.question.number} / ${state.question.total}`;
   elements.question.textContent = state.question.text;
 
   if (state.session.status === 'answering') {
@@ -374,7 +374,7 @@ function attemptAutoJoin() {
 
   if (saved?.id && saved?.name) {
     elements.connectionMessage.hidden = false;
-    elements.connectionMessage.textContent = 'Reintrăm în sesiune…';
+    elements.connectionMessage.textContent = 'Rejoining the session…';
     joinSession({ code: activeSessionCode, name: saved.name, playerId: saved.id, silent: true });
   }
 }
@@ -385,13 +385,13 @@ elements.joinForm.addEventListener('submit', (event) => {
   const name = elements.nameInput.value.trim();
 
   if (code.length !== 4) {
-    elements.joinMessage.textContent = 'Codul trebuie să aibă 4 caractere.';
+    elements.joinMessage.textContent = 'The code must be 4 characters long.';
     elements.sessionInput.focus();
     return;
   }
 
   if (!name) {
-    elements.joinMessage.textContent = 'Scrie numele tău ca să poți intra.';
+    elements.joinMessage.textContent = 'Enter your name to join.';
     elements.nameInput.focus();
     return;
   }
@@ -422,13 +422,13 @@ socket.on('timer:tick', ({ code, remaining }) => {
     const button = elements.phaseContent.querySelector('button[type="submit"]');
     if (input) input.disabled = true;
     if (button) button.disabled = true;
-    elements.playerMessage.textContent = 'Timpul a expirat. Pregătim votarea…';
+    elements.playerMessage.textContent = "Time's up. Getting voting ready…";
   }
 });
 
 socket.on('player:replaced', () => {
   elements.connectionMessage.hidden = false;
-  elements.connectionMessage.textContent = 'Sesiunea a fost deschisă într-o altă filă.';
+  elements.connectionMessage.textContent = 'This session was opened in another tab.';
 });
 
 socket.on('connect', () => {
@@ -449,8 +449,8 @@ socket.on('connect', () => {
 socket.on('disconnect', (reason) => {
   elements.connectionMessage.hidden = false;
   elements.connectionMessage.textContent = reason === 'io server disconnect'
-    ? 'Sesiunea este activă într-o altă filă.'
-    : 'Conexiune întreruptă. Încercăm din nou…';
+    ? 'This session is active in another tab.'
+    : 'Connection lost. Trying again…';
 });
 
 if (activeSessionCode) {

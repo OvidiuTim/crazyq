@@ -40,10 +40,10 @@ const elements = {
 
 const statusLabels = {
   lobby: 'Lobby',
-  answering: 'Răspunsuri',
-  voting: 'Votare',
-  question_result: 'Rezultat',
-  finished: 'Final',
+  answering: 'Answering',
+  voting: 'Voting',
+  question_result: 'Question result',
+  finished: 'Finished',
 };
 
 let activeSessionCode = localStorage.getItem(HOST_STORAGE_KEY) || '';
@@ -129,11 +129,11 @@ function renderVoting(state) {
   const button = document.createElement('button');
 
   heading.className = 'content-title';
-  heading.textContent = 'Răspunsurile sunt pe masă';
+  heading.textContent = 'The answers are in';
   list.className = 'answer-grid admin-answers';
 
   if (!state.answers?.length) {
-    list.append(createEmptyNotice('Nimeni nu a trimis un răspuns la această întrebare.'));
+    list.append(createEmptyNotice('No one submitted an answer to this question.'));
   } else {
     for (const answer of state.answers) {
       const card = document.createElement('article');
@@ -141,7 +141,7 @@ function renderVoting(state) {
       const author = document.createElement('small');
       card.className = 'answer-card';
       text.textContent = answer.text;
-      author.textContent = `scris de ${answer.authorName}`;
+      author.textContent = `by ${answer.authorName}`;
       card.append(text, author);
       list.append(card);
     }
@@ -149,7 +149,7 @@ function renderVoting(state) {
 
   button.className = 'button button-primary button-large button-full phase-action';
   button.type = 'button';
-  button.textContent = 'Închide votarea';
+  button.textContent = 'Close voting';
   button.addEventListener('click', () => closeVoting(button));
   container.append(heading, list, button);
   elements.phaseContent.append(container);
@@ -162,11 +162,11 @@ function renderResults(state) {
   const button = document.createElement('button');
 
   heading.className = 'content-title';
-  heading.textContent = 'Verdictul publicului';
+  heading.textContent = "The crowd's verdict";
   list.className = 'results-list';
 
   if (!state.results?.length) {
-    list.append(createEmptyNotice('Nu există răspunsuri pentru această rundă.'));
+    list.append(createEmptyNotice('No answers this round.'));
   } else {
     state.results.forEach((result, index) => {
       const item = document.createElement('article');
@@ -182,7 +182,7 @@ function renderResults(state) {
       text.textContent = result.text;
       author.textContent = result.authorName;
       votes.className = 'vote-count';
-      votes.textContent = `${result.voteCount} ${result.voteCount === 1 ? 'vot' : 'voturi'}`;
+      votes.textContent = `${result.voteCount} ${result.voteCount === 1 ? 'vote' : 'votes'}`;
       body.append(text, author);
       item.append(rank, body, votes);
       list.append(item);
@@ -192,7 +192,7 @@ function renderResults(state) {
   const isLast = state.question.number === state.question.total;
   button.className = 'button button-primary button-large button-full phase-action';
   button.type = 'button';
-  button.textContent = isLast ? 'Vezi clasamentul final' : 'Următoarea întrebare';
+  button.textContent = isLast ? 'View final leaderboard' : 'Next question';
   button.addEventListener('click', () => nextQuestion(button));
   container.append(heading, list, button);
   elements.phaseContent.append(container);
@@ -206,7 +206,7 @@ function createLeaderboard(leaderboard) {
 
   wrapper.className = 'leaderboard';
   title.className = 'final-title';
-  title.innerHTML = '<span aria-hidden="true">🏆</span><h2>Clasamentul final</h2><p>Aplauze, dramă și glorie eternă.</p>';
+  title.innerHTML = '<span aria-hidden="true">🏆</span><h2>Final leaderboard</h2><p>Applause, drama, and eternal glory.</p>';
   podium.className = 'podium';
   rest.className = 'ranking-list';
 
@@ -219,7 +219,7 @@ function createLeaderboard(leaderboard) {
     place.className = 'podium-place';
     place.textContent = `${index + 1}`;
     name.textContent = player.name;
-    score.textContent = `${player.score} p`;
+    score.textContent = `${player.score} pts`;
     card.append(place, name, score);
     podium.append(card);
   });
@@ -231,13 +231,13 @@ function createLeaderboard(leaderboard) {
     const score = document.createElement('span');
     rank.textContent = `${player.rank}`;
     name.textContent = player.name;
-    score.textContent = `${player.score} p`;
+    score.textContent = `${player.score} pts`;
     row.append(rank, name, score);
     rest.append(row);
   });
 
   if (!leaderboard.length) {
-    podium.append(createEmptyNotice('Nu există încă participanți în clasament.'));
+    podium.append(createEmptyNotice('No players on the leaderboard yet.'));
   }
 
   wrapper.append(title, podium, rest);
@@ -255,25 +255,25 @@ function renderGame(state) {
   elements.progressCard.hidden = status === 'question_result' || status === 'finished';
 
   if (status === 'finished') {
-    elements.questionCounter.textContent = 'Joc încheiat';
+    elements.questionCounter.textContent = 'Game over';
     elements.gameQuestionNumber.textContent = 'Final';
-    elements.questionText.textContent = 'Avem un clasament!';
+    elements.questionText.textContent = 'We have a leaderboard!';
     elements.timerBox.hidden = true;
     elements.phaseContent.append(createLeaderboard(state.leaderboard || []));
     return;
   }
 
-  elements.questionCounter.textContent = `Întrebarea ${state.question.number} / ${state.question.total}`;
-  elements.gameQuestionNumber.textContent = `Întrebarea ${state.question.number} / ${state.question.total}`;
+  elements.questionCounter.textContent = `Question ${state.question.number} / ${state.question.total}`;
+  elements.gameQuestionNumber.textContent = `Question ${state.question.number} / ${state.question.total}`;
   elements.questionText.textContent = state.question.text;
   elements.timerBox.hidden = status !== 'answering';
   elements.timerValue.textContent = state.timer.remaining;
 
   if (status === 'answering') {
-    updateProgress(state.progress.answersSubmitted, state.progress.playersTotal, 'răspunsuri primite');
-    elements.phaseContent.append(createEmptyNotice('Jucătorii își scriu răspunsurile. Urmărește contorul — votarea începe automat.'));
+    updateProgress(state.progress.answersSubmitted, state.progress.playersTotal, 'answers received');
+    elements.phaseContent.append(createEmptyNotice('Players are writing their answers. Keep an eye on the counter — voting starts automatically.'));
   } else if (status === 'voting') {
-    updateProgress(state.progress.votesSubmitted, state.progress.playersTotal, 'voturi trimise');
+    updateProgress(state.progress.votesSubmitted, state.progress.playersTotal, 'votes submitted');
     renderVoting(state);
   } else if (status === 'question_result') {
     renderResults(state);
@@ -301,14 +301,14 @@ function resumeSession() {
   }
 
   elements.connectionMessage.hidden = false;
-  elements.connectionMessage.textContent = 'Reconectăm sesiunea…';
+  elements.connectionMessage.textContent = 'Reconnecting to the session…';
   socket.emit('host:resume', { sessionCode: activeSessionCode }, (response) => {
     elements.connectionMessage.hidden = true;
 
     if (!response?.ok) {
       localStorage.removeItem(HOST_STORAGE_KEY);
       activeSessionCode = '';
-      showCreateView(response?.error || 'Sesiunea nu a putut fi reluată.');
+      showCreateView(response?.error || 'The session could not be resumed.');
       return;
     }
 
@@ -317,34 +317,34 @@ function resumeSession() {
 }
 
 function closeVoting(button) {
-  setButtonLoading(button, true, 'Închide votarea', 'Se închide…');
+  setButtonLoading(button, true, 'Close voting', 'Closing…');
   socket.emit('voting:close', { sessionCode: activeSessionCode }, (response) => {
     if (!response?.ok) {
-      setButtonLoading(button, false, 'Închide votarea', 'Se închide…');
-      elements.gameMessage.textContent = response?.error || 'Votarea nu a putut fi închisă.';
+      setButtonLoading(button, false, 'Close voting', 'Closing…');
+      elements.gameMessage.textContent = response?.error || 'Voting could not be closed.';
     }
   });
 }
 
 function nextQuestion(button) {
   const normalText = button.textContent;
-  setButtonLoading(button, true, normalText, 'Pregătim…');
+  setButtonLoading(button, true, normalText, 'Getting ready…');
   socket.emit('question:next', { sessionCode: activeSessionCode }, (response) => {
     if (!response?.ok) {
-      setButtonLoading(button, false, normalText, 'Pregătim…');
-      elements.gameMessage.textContent = response?.error || 'Nu am putut continua jocul.';
+      setButtonLoading(button, false, normalText, 'Getting ready…');
+      elements.gameMessage.textContent = response?.error || 'The game could not continue.';
     }
   });
 }
 
 elements.createButton.addEventListener('click', () => {
   elements.createMessage.textContent = '';
-  setButtonLoading(elements.createButton, true, 'Creează sesiune nouă', 'Se creează…');
+  setButtonLoading(elements.createButton, true, 'Create new session', 'Creating…');
   socket.emit('session:create', {}, (response) => {
-    setButtonLoading(elements.createButton, false, 'Creează sesiune nouă', 'Se creează…');
+    setButtonLoading(elements.createButton, false, 'Create new session', 'Creating…');
 
     if (!response?.ok) {
-      elements.createMessage.textContent = response?.error || 'Sesiunea nu a putut fi creată.';
+      elements.createMessage.textContent = response?.error || 'The session could not be created.';
       return;
     }
 
@@ -357,19 +357,19 @@ elements.copyButton.addEventListener('click', async () => {
 
   try {
     await navigator.clipboard.writeText(elements.playerLink.href);
-    elements.copyMessage.textContent = 'Link copiat!';
+    elements.copyMessage.textContent = 'Link copied!';
   } catch {
-    elements.copyMessage.textContent = 'Selectează linkul și copiază-l manual.';
+    elements.copyMessage.textContent = 'Select the link and copy it manually.';
   }
 });
 
 elements.startButton.addEventListener('click', () => {
   elements.startMessage.textContent = '';
-  setButtonLoading(elements.startButton, true, 'Începe jocul', 'Pregătim întrebările…');
+  setButtonLoading(elements.startButton, true, 'Start game', 'Preparing questions…');
   socket.emit('game:start', { sessionCode: activeSessionCode }, (response) => {
     if (!response?.ok) {
-      setButtonLoading(elements.startButton, false, 'Începe jocul', 'Pregătim întrebările…');
-      elements.startMessage.textContent = response?.error || 'Jocul nu a putut fi pornit.';
+      setButtonLoading(elements.startButton, false, 'Start game', 'Preparing questions…');
+      elements.startMessage.textContent = response?.error || 'The game could not be started.';
     }
   });
 });
@@ -398,7 +398,7 @@ socket.on('connect', () => {
 
 socket.on('disconnect', () => {
   elements.connectionMessage.hidden = false;
-  elements.connectionMessage.textContent = 'Conexiune întreruptă. Încercăm din nou…';
+  elements.connectionMessage.textContent = 'Connection lost. Trying again…';
 });
 
 if (!activeSessionCode) {

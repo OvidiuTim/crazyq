@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="ro">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#6d47e5" />
-    <title>CrazyQ · Joacă</title>
+    <title>CrazyQ · Play</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body class="play-page">
@@ -21,13 +21,13 @@
 
       <section class="join-card" id="joinView">
         <div class="join-intro">
-          <p class="eyebrow">Intră în joc</p>
-          <h1>E gașca pregătită?</h1>
-          <p class="lead">Ai nevoie doar de cod și de un nume memorabil.</p>
+          <p class="eyebrow">Join the game</p>
+          <h1>Is the crew ready?</h1>
+          <p class="lead">All you need is the code and a memorable name.</p>
         </div>
 
         <form id="joinForm" novalidate>
-          <label for="sessionInput">Cod sesiune</label>
+          <label for="sessionInput">Session code</label>
           <input
             class="code-input"
             id="sessionInput"
@@ -41,14 +41,14 @@
             required
           />
 
-          <label for="nameInput">Numele tău</label>
+          <label for="nameInput">Your name</label>
           <input
             id="nameInput"
             name="name"
             type="text"
             maxlength="30"
             autocomplete="name"
-            placeholder="Ex: Mara"
+            placeholder="E.g. Jamie"
             required
           />
 
@@ -67,13 +67,13 @@
 
         <section class="mobile-game-card">
           <div class="mobile-question-meta">
-            <span id="playerQuestionNumber">Așteptăm hostul</span>
+            <span id="playerQuestionNumber">Waiting for the host</span>
             <div class="timer mobile-timer" id="playerTimerBox" hidden>
               <span class="timer-value" id="playerTimerValue">15</span>
               <span class="timer-unit">sec</span>
             </div>
           </div>
-          <h1 class="mobile-question" id="playerQuestion">Jocul începe în curând.</h1>
+          <h1 class="mobile-question" id="playerQuestion">The game will start soon.</h1>
           <div class="player-phase-content" id="playerPhaseContent"></div>
           <p class="message error-message" id="playerMessage" role="alert" aria-live="assertive"></p>
         </section>

@@ -2,7 +2,7 @@
   "name": "crazyq-live-game",
   "version": "1.0.0",
   "private": true,
-  "description": "Joc live cu întrebări trăznite, răspunsuri, voturi și clasament.",
+  "description": "A live party game with wild questions, answers, voting, and a final leaderboard.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

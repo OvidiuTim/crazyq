@@ -1,115 +1,115 @@
 # CrazyQ
 
-CrazyQ este un joc live pentru grupuri: hostul afișează întrebarea, participanții răspund de pe telefon, votează răspunsul preferat și primesc puncte.
+CrazyQ is a live party game for groups: the host displays a question, players answer from their phones, vote for their favorite answer, and score points.
 
-## Tehnologii
+## Tech stack
 
 - Node.js 20+
 - Express
 - Socket.IO
-- SQLite prin `better-sqlite3`
-- HTML, CSS și JavaScript fără framework
+- SQLite through `better-sqlite3`
+- Plain HTML, CSS, and JavaScript
 
-## Instalare și pornire
+## Install and run
 
 ```bash
 npm install
 npm start
 ```
 
-Serverul pornește implicit la `http://localhost:3000`.
+By default, the server starts at `http://localhost:3000`.
 
 - Host: `http://localhost:3000/admin`
-- Participanți: `http://localhost:3000/play`
+- Players: `http://localhost:3000/play`
 
-Pentru dezvoltare, poți folosi `npm run dev` pentru restart automat la modificarea fișierelor.
+For development, use `npm run dev` to restart the server automatically when files change.
 
-## Întrebări
+## Questions
 
-Întrebările se pun în:
+Add questions to:
 
 ```text
 data/questions.txt
 ```
 
-Sunt acceptate mai multe formate.
+The importer accepts several formats.
 
-O întrebare pe linie:
+One question per line:
 
 ```text
-Ce superputere complet inutilă ți-ai dori?
-Care este cea mai absurdă scuză pentru întârziere?
+What completely useless superpower would you want?
+What is the most ridiculous excuse for being late?
 ```
 
-Linii între ghilimele:
+Quoted lines:
 
 ```js
-"Ce superputere complet inutilă ți-ai dori?",
-"Care este cea mai absurdă scuză pentru întârziere?",
+"What completely useless superpower would you want?",
+"What is the most ridiculous excuse for being late?",
 ```
 
-Sau un array JavaScript complet:
+Or a complete JavaScript array:
 
 ```js
 const questions = [
-  "Ce superputere complet inutilă ți-ai dori?",
-  "Care este cea mai absurdă scuză pentru întârziere?",
+  "What completely useless superpower would you want?",
+  "What is the most ridiculous excuse for being late?",
 ];
 ```
 
-La prima pornire, aplicația creează `data/crazyq.db`, creează tabelele și importă întrebările dacă tabelul `questions` este gol. Duplicatele sunt ignorate. Jocul are nevoie de minimum 10 întrebări.
+On first launch, the application creates `data/crazyq.db`, creates the tables, and imports the questions when the `questions` table is empty. Duplicates are ignored. A game needs at least 10 questions.
 
-Dacă vrei să refaci importul de la zero în timpul dezvoltării, oprește serverul, șterge `data/crazyq.db`, apoi pornește din nou aplicația. Fișierele SQLite auxiliare `-wal` și `-shm` pot fi șterse împreună cu baza doar cât timp serverul este oprit.
+To rebuild the question import from scratch during development, stop the server, delete `data/crazyq.db`, and start the application again. The SQLite `-wal` and `-shm` files may be deleted with the database only while the server is stopped.
 
-## Cum se joacă
+## How to play
 
-1. Hostul deschide `/admin`, creează sesiunea și distribuie codul sau linkul.
-2. Participanții intră pe `/play`, aleg un nume și dau Join.
-3. Hostul pornește jocul; aplicația alege aleatoriu 10 întrebări fără repetări.
-4. Pentru fiecare întrebare există 15 secunde de răspuns.
-5. După expirarea timpului, participanții votează un răspuns care nu le aparține.
-6. Hostul închide votarea, afișează rezultatul și trece la întrebarea următoare.
-7. După întrebarea 10, clasamentul final apare pe toate ecranele.
+1. The host opens `/admin`, creates a session, and shares the code or player link.
+2. Players open `/play`, choose a name, and press Join.
+3. The host starts the game; the application randomly selects 10 questions without repeats.
+4. Players have 15 seconds to answer each question. Voting starts early when every active player has answered.
+5. Players vote for an answer that is not their own.
+6. The host closes voting, reveals the result, and moves to the next question.
+7. After question 10, the final leaderboard appears on every screen.
 
-Un vot valorează un punct pentru autorul răspunsului. La scor egal, jucătorii sunt ordonați alfabetic.
+Each vote gives one point to the author of that answer. Players with the same score are sorted alphabetically.
 
-Identitatea participantului este păstrată local în browser. La refresh, acesta reintră automat cu același nume și își păstrează răspunsurile, voturile și scorul.
+Player identity is stored locally in the browser. After a refresh, the player automatically rejoins with the same name and keeps their answers, votes, and score.
 
-## Testare de pe telefon în aceeași rețea
+## Test from a phone on the same network
 
-1. Conectează laptopul și telefonul la aceeași rețea Wi-Fi.
-2. Află adresa IPv4 a laptopului. Pe Windows rulează:
+1. Connect the laptop and phone to the same Wi-Fi network.
+2. Find the laptop's IPv4 address. On Windows, run:
 
 ```powershell
 ipconfig
 ```
 
-3. Caută `IPv4 Address`, de exemplu `192.168.1.25`.
-4. Pornește aplicația pe laptop cu `npm start`.
-5. Pe telefon deschide `http://192.168.1.25:3000/play` sau linkul de participant afișat de host, înlocuind `localhost` cu IP-ul laptopului.
+3. Find `IPv4 Address`, for example `192.168.1.25`.
+4. Start the application on the laptop with `npm start`.
+5. On the phone, open `http://192.168.1.25:3000/play`, or replace `localhost` in the player link with the laptop's IP address.
 
-Dacă telefonul nu se poate conecta, permite Node.js prin Windows Firewall pentru rețeaua privată și verifică dacă routerul permite comunicarea între dispozitivele Wi-Fi.
+If the phone cannot connect, allow Node.js through Windows Firewall for private networks and check that the router allows communication between Wi-Fi devices.
 
-## Persistență
+## Persistence
 
-SQLite păstrează întrebările, sesiunile, participanții, răspunsurile, voturile și scorurile. Socket.IO gestionează actualizările live și timerul. După repornirea serverului, o sesiune poate fi reluată, iar unei faze de răspuns active i se acordă un timer nou de 15 secunde.
+SQLite stores questions, sessions, players, answers, votes, and scores. Socket.IO handles live updates and the timer. After a server restart, a session can be resumed; an active answering phase receives a fresh 15-second timer.
 
-## Deploy pe VPS
+## Deploy to a VPS
 
-Aplicația trebuie rulată pe un VPS cu Node.js 20 sau mai nou. Domeniul `crazyq.example.ro` trebuie să aibă o înregistrare DNS către IP-ul VPS-ului.
+Run the application on a VPS with Node.js 20 or newer. The DNS record for `crazyq.example.ro` must point to the VPS IP address.
 
-Clonează proiectul și verifică pornirea:
+Clone the project and verify that it starts:
 
 ```bash
-git clone <URL-REPOSITORY> crazyq
+git clone <REPOSITORY-URL> crazyq
 cd crazyq
 npm install
 npm start
 ```
 
-Comanda `npm start` rulează `node server.js`. Aplicația folosește portul din variabila de mediu `PORT`, iar în lipsa acesteia pornește pe portul `3000`.
+The `npm start` command runs `node server.js`. The application uses the `PORT` environment variable and falls back to port `3000` when it is not set.
 
-Pentru rulare permanentă, oprește procesul pornit manual și folosește PM2:
+For a persistent production process, stop the manually started server and use PM2:
 
 ```bash
 npm install --global pm2
@@ -118,13 +118,13 @@ pm2 save
 pm2 startup
 ```
 
-Ultima comandă afișează o comandă suplimentară care trebuie rulată cu drepturi de administrator pentru ca PM2 să pornească automat după restartarea VPS-ului.
+The last command prints an additional command that must be run with administrator privileges so PM2 starts automatically after the VPS reboots.
 
-Rulează CrazyQ într-un singur proces PM2, fără cluster mode. SQLite este local, iar timerele și conexiunile sesiunilor active sunt ținute în memoria procesului. Directorul `data/` trebuie să poată fi scris de utilizatorul care rulează aplicația și este recomandat să faci backup periodic pentru `data/crazyq.db`.
+Run CrazyQ as a single PM2 process without cluster mode. SQLite is local, while active timers and socket connections live in process memory. The `data/` directory must be writable by the user running the application. Back up `data/crazyq.db` regularly.
 
-### Configurație Nginx
+### Nginx configuration
 
-Exemplul următor poate fi salvat în `/etc/nginx/sites-available/crazyq`. Directiva `map` trebuie să fie în contextul `http`; fișierele încărcate din `sites-enabled` sunt în mod normal deja incluse în acest context.
+Save the following example as `/etc/nginx/sites-available/crazyq`. The `map` directive must be inside the `http` context; files loaded from `sites-enabled` are normally included there already.
 
 ```nginx
 map $http_upgrade $connection_upgrade {
@@ -155,7 +155,7 @@ server {
 }
 ```
 
-Activează configurația și reîncarcă Nginx:
+Enable the configuration and reload Nginx:
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/crazyq /etc/nginx/sites-enabled/crazyq
@@ -163,8 +163,8 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-Porturile publice necesare sunt `80` și `443`; portul `3000` nu trebuie expus public dacă Nginx rulează pe același VPS.
+Only ports `80` and `443` need to be public. Port `3000` should not be exposed when Nginx runs on the same VPS.
 
-Socket.IO începe de regulă prin HTTP long-polling și face upgrade la WebSocket. Din acest motiv, headerele `Upgrade` și `Connection`, versiunea HTTP 1.1 și timeout-urile mărite din configurația de mai sus sunt necesare. Fără proxy WebSocket corect, lobby-ul poate părea conectat inițial, dar actualizările live se pot întrerupe.
+Socket.IO normally begins with HTTP long-polling and upgrades to WebSocket. The `Upgrade` and `Connection` headers, HTTP 1.1, and longer timeouts in the configuration above are required. Without correct WebSocket proxying, the lobby may appear connected at first while live updates later fail.
 
-După ce varianta HTTP funcționează, configurează un certificat TLS pentru `crazyq.example.ro` (de exemplu cu Certbot) și accesează aplicația prin HTTPS.
+After the HTTP version works, configure a TLS certificate for `crazyq.example.ro`—for example, with Certbot—and use the application over HTTPS.

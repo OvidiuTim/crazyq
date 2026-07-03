@@ -81,7 +81,7 @@ function generateSessionCode() {
     }
   }
 
-  throw new Error('Nu s-a putut genera un cod unic de sesiune.');
+  throw new Error('Could not generate a unique session code.');
 }
 
 function getCurrentQuestion(session) {
@@ -437,7 +437,7 @@ const chooseSessionQuestions = db.transaction((sessionId) => {
   `).all(QUESTIONS_PER_GAME);
 
   if (questions.length < QUESTIONS_PER_GAME) {
-    throw new Error(`Sunt necesare minimum ${QUESTIONS_PER_GAME} întrebări în baza de date.`);
+    throw new Error(`The database needs at least ${QUESTIONS_PER_GAME} questions.`);
   }
 
   db.prepare('DELETE FROM session_questions WHERE session_id = ?').run(sessionId);
@@ -488,7 +488,7 @@ function registerSocketHandler(socket, eventName, handler) {
       handler(payload || {}, reply);
     } catch (error) {
       console.error(`[${eventName}]`, error);
-      reply({ ok: false, error: 'A apărut o eroare pe server. Încearcă din nou.' });
+      reply({ ok: false, error: 'Something went wrong on the server. Please try again.' });
     }
   });
 }
@@ -522,7 +522,7 @@ io.on('connection', (socket) => {
     const session = getSession(code);
 
     if (!session) {
-      reply({ ok: false, error: 'Sesiunea nu mai există.' });
+      reply({ ok: false, error: 'This session no longer exists.' });
       return;
     }
 
@@ -530,7 +530,7 @@ io.on('connection', (socket) => {
     const activeHost = runtime.hostSocketId && io.sockets.sockets.has(runtime.hostSocketId);
 
     if (activeHost && runtime.hostSocketId !== socket.id) {
-      reply({ ok: false, error: 'Sesiunea este deja deschisă într-o altă filă.' });
+      reply({ ok: false, error: 'This session is already open in another tab.' });
       return;
     }
 
@@ -548,12 +548,12 @@ io.on('connection', (socket) => {
     const runtime = session ? getRuntime(session.code) : null;
 
     if (!session || runtime.hostSocketId !== socket.id) {
-      reply({ ok: false, error: 'Doar hostul sesiunii poate începe jocul.' });
+      reply({ ok: false, error: 'Only the session host can start the game.' });
       return;
     }
 
     if (session.status !== 'lobby') {
-      reply({ ok: false, error: 'Jocul a fost deja pornit.' });
+      reply({ ok: false, error: 'The game has already started.' });
       return;
     }
 
@@ -561,7 +561,7 @@ io.on('connection', (socket) => {
     if (questionCount < QUESTIONS_PER_GAME) {
       reply({
         ok: false,
-        error: `Adaugă minimum ${QUESTIONS_PER_GAME} întrebări în data/questions.txt și recreează baza de date.`,
+        error: `Add at least ${QUESTIONS_PER_GAME} questions to data/questions.txt and recreate the database.`,
       });
       return;
     }
@@ -577,29 +577,29 @@ io.on('connection', (socket) => {
     const requestedPlayerId = Number.parseInt(payload.playerId, 10) || null;
 
     if (!/^[A-Z0-9]{4}$/.test(code)) {
-      reply({ ok: false, error: 'Codul trebuie să aibă 4 caractere.' });
+      reply({ ok: false, error: 'The code must be 4 characters long.' });
       return;
     }
 
     if (!name) {
-      reply({ ok: false, error: 'Scrie numele tău ca să poți intra.' });
+      reply({ ok: false, error: 'Enter your name to join.' });
       return;
     }
 
     if (name.length > MAX_NAME_LENGTH) {
-      reply({ ok: false, error: `Numele poate avea cel mult ${MAX_NAME_LENGTH} de caractere.` });
+      reply({ ok: false, error: `Your name can be up to ${MAX_NAME_LENGTH} characters long.` });
       return;
     }
 
     const session = getSession(code);
     if (!session) {
-      reply({ ok: false, error: 'Sesiunea nu există. Verifică atent codul.' });
+      reply({ ok: false, error: 'That session does not exist. Double-check the code.' });
       return;
     }
 
     const currentPlayer = getPlayerForSocket(socket);
     if (currentPlayer && currentPlayer.sessionId !== session.id) {
-      reply({ ok: false, error: 'Ești deja conectat la o altă sesiune.' });
+      reply({ ok: false, error: 'You are already connected to another session.' });
       return;
     }
 
@@ -631,7 +631,7 @@ io.on('connection', (socket) => {
         oldSocket?.emit('player:replaced');
         oldSocket?.disconnect(true);
       } else {
-        reply({ ok: false, error: 'Numele este deja folosit în această sesiune.' });
+        reply({ ok: false, error: 'That name is already taken in this session.' });
         return;
       }
     }
@@ -671,7 +671,7 @@ io.on('connection', (socket) => {
     const text = normalizeAnswer(payload.text);
 
     if (!player) {
-      reply({ ok: false, error: 'Intră din nou în sesiune.' });
+      reply({ ok: false, error: 'Please rejoin the session.' });
       return;
     }
 
@@ -679,23 +679,23 @@ io.on('connection', (socket) => {
     const runtime = getRuntime(session.code);
 
     if (session.status !== 'answering') {
-      reply({ ok: false, error: 'Faza de răspuns s-a încheiat.' });
+      reply({ ok: false, error: 'The answering phase has ended.' });
       return;
     }
 
     if (runtime.answerDeadline && Date.now() >= runtime.answerDeadline) {
       transitionToVoting(session.code);
-      reply({ ok: false, error: 'Timpul pentru răspuns a expirat.' });
+      reply({ ok: false, error: 'Time is up for this answer.' });
       return;
     }
 
     if (!text) {
-      reply({ ok: false, error: 'Răspunsul nu poate fi gol.' });
+      reply({ ok: false, error: 'Your answer cannot be empty.' });
       return;
     }
 
     if (text.length > MAX_ANSWER_LENGTH) {
-      reply({ ok: false, error: `Răspunsul poate avea cel mult ${MAX_ANSWER_LENGTH} de caractere.` });
+      reply({ ok: false, error: `Your answer can be up to ${MAX_ANSWER_LENGTH} characters long.` });
       return;
     }
 
@@ -708,7 +708,7 @@ io.on('connection', (socket) => {
       `).run(session.id, question.id, player.id, text);
     } catch (error) {
       if (error.code?.startsWith('SQLITE_CONSTRAINT')) {
-        reply({ ok: false, error: 'Ai trimis deja un răspuns la această întrebare.' });
+        reply({ ok: false, error: 'You already submitted an answer to this question.' });
         return;
       }
       throw error;
@@ -729,13 +729,13 @@ io.on('connection', (socket) => {
     const answerId = Number.parseInt(payload.answerId, 10);
 
     if (!player) {
-      reply({ ok: false, error: 'Intră din nou în sesiune.' });
+      reply({ ok: false, error: 'Please rejoin the session.' });
       return;
     }
 
     const session = getSession(player.code);
     if (session.status !== 'voting') {
-      reply({ ok: false, error: 'Votarea nu este deschisă.' });
+      reply({ ok: false, error: 'Voting is not open.' });
       return;
     }
 
@@ -747,12 +747,12 @@ io.on('connection', (socket) => {
     `).get(answerId, session.id, question.id);
 
     if (!answer) {
-      reply({ ok: false, error: 'Răspunsul ales nu este valid.' });
+      reply({ ok: false, error: 'The selected answer is not valid.' });
       return;
     }
 
     if (answer.playerId === player.id) {
-      reply({ ok: false, error: 'Nu poți vota propriul răspuns.' });
+      reply({ ok: false, error: 'You cannot vote for your own answer.' });
       return;
     }
 
@@ -763,7 +763,7 @@ io.on('connection', (socket) => {
       `).run(session.id, question.id, player.id, answer.id);
     } catch (error) {
       if (error.code?.startsWith('SQLITE_CONSTRAINT')) {
-        reply({ ok: false, error: 'Ai votat deja la această întrebare.' });
+        reply({ ok: false, error: 'You already voted on this question.' });
         return;
       }
       throw error;
@@ -780,12 +780,12 @@ io.on('connection', (socket) => {
     const runtime = session ? getRuntime(session.code) : null;
 
     if (!session || runtime.hostSocketId !== socket.id) {
-      reply({ ok: false, error: 'Doar hostul poate închide votarea.' });
+      reply({ ok: false, error: 'Only the host can close voting.' });
       return;
     }
 
     if (session.status !== 'voting') {
-      reply({ ok: false, error: 'Sesiunea nu este în faza de votare.' });
+      reply({ ok: false, error: 'The session is not in the voting phase.' });
       return;
     }
 
@@ -800,12 +800,12 @@ io.on('connection', (socket) => {
     const runtime = session ? getRuntime(session.code) : null;
 
     if (!session || runtime.hostSocketId !== socket.id) {
-      reply({ ok: false, error: 'Doar hostul poate continua jocul.' });
+      reply({ ok: false, error: 'Only the host can continue the game.' });
       return;
     }
 
     if (session.status !== 'question_result') {
-      reply({ ok: false, error: 'Rezultatul întrebării nu este încă afișat.' });
+      reply({ ok: false, error: 'The question result is not being shown yet.' });
       return;
     }
 
@@ -862,8 +862,8 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`CrazyQ rulează pe http://localhost:${PORT}`);
-  console.log(`Întrebări în SQLite: ${importResult.total} (${importResult.imported} importate acum)`);
+  console.log(`CrazyQ is running at http://localhost:${PORT}`);
+  console.log(`Questions in SQLite: ${importResult.total} (${importResult.imported} imported now)`);
 });
 
 function shutdown() {
